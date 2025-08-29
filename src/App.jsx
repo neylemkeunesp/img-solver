@@ -10,23 +10,15 @@ import {
   Download,
   Copy,
   FileText,
-  CheckCircle,
+  Undo2,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
-import { jsPDF } from "jspdf"; // UMD-friendly
-import "katex/dist/katex.min.css"; // garante CSS em build local
-
-// ==============================================
-//  Solucionador por Imagem — Markdown + LaTeX
-//  + PDF + Checagem Simbólica + Painel de Config
-//  (CLIENTE usa SEMPRE /api/solve; chave fica no servidor)
-// ==============================================
+import "katex/dist/katex.min.css";
 
 export default function App() {
-  // ==== Canvas & câmera ====
   const canvasRef = useRef(null);
   const ctxRef = useRef(null);
   const videoRef = useRef(null);
@@ -34,26 +26,22 @@ export default function App() {
   const [isDrawing, setIsDrawing] = useState(false);
   const [penSize, setPenSize] = useState(4);
   const [isEraser, setIsEraser] = useState(false);
-  const [cameraOn, setCameraOn] = useState(false);
-  const [stream, setStream] = useState(null);
 
-  // ==== App state ====
+  const historyRef = useRef([]);
+  const [histLen, setHistLen] = useState(0);
+
   const [loading, setLoading] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
-  const [output, setOutput] = useState(""); // SEMPRE string para ReactMarkdown
+  const [output, setOutput] = useState("");
   const [prompt, setPrompt] = useState(
     "Interprete o problema desta imagem e resolva-o passo a passo. Use Markdown e LaTeX ($…$, $$…$$). Termine com uma seção **Resposta** destacando o resultado final."
   );
 
-  // ==== Config (somente para o backend saber o modelo) ====
-  const [provider, setProvider] = useState("openai"); // 'openai' | 'openrouter'
-  const [model, setModel] = useState("gpt-4o-mini"); // modelo com visão
+  const [provider, setProvider] = useState("openai");
+  const [model, setModel] = useState("gpt-4o-mini");
   const [temperature, setTemperature] = useState(0.2);
   const [showSettings, setShowSettings] = useState(false);
 
-  // (não enviamos apiKey do cliente; fica no servidor)
-
-  // Carrega jsPDF e nerdamer via CDN uma vez
   useEffect(() => {
     const loadScript = (id, src) => new Promise((resolve, reject) => {
       if (document.getElementById(id)) return resolve();
@@ -65,25 +53,15 @@ export default function App() {
     (async () => {
       try {
         await loadScript('jspdf-cdn', 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js');
-        await loadScript('nerdamer-core', 'https://cdn.jsdelivr.net/npm/nerdamer@1.1.13/nerdamer.core.min.js');
-        await loadScript('nerdamer-algebra', 'https://cdn.jsdelivr.net/npm/nerdamer@1.1.13/Algebra.js');
-        await loadScript('nerdamer-calc', 'https://cdn.jsdelivr.net/npm/nerdamer@1.1.13/Calculus.js');
-        await loadScript('nerdamer-solve', 'https://cdn.jsdelivr.net/npm/nerdamer@1.1.13/Solve.js');
       } catch (e) {
-        console.warn(e);
+        console.warn("Falha ao carregar scripts externos:", e);
       }
     })();
   }, []);
 
-  // ==== Checagem simbólica ====
-  const [lhs, setLhs] = useState("");
-  const [rhs, setRhs] = useState("");
-  const [checkMsg, setCheckMsg] = useState("");
-
   const WIDTH = 900;
   const HEIGHT = 600;
 
-  // ---- Persistência leve ----
   useEffect(() => {
     const saved = localStorage.getItem("img-solve-settings");
     if (!saved) return;
@@ -92,8 +70,10 @@ export default function App() {
       setProvider(cfg.provider ?? "openai");
       setModel(cfg.model ?? "gpt-4o-mini");
       setTemperature(typeof cfg.temperature === "number" ? cfg.temperature : 0.2);
-      setPrompt(cfg.prompt ?? prompt);
-    } catch {}
+      setPrompt((p) => cfg.prompt ?? p);
+    } catch (e) {
+      console.warn("Falha ao ler preferências salvas:", e);
+    }
   }, []);
 
   const saveSettings = () => {
@@ -103,7 +83,17 @@ export default function App() {
     );
   };
 
-  // ---- Inicializa o canvas ----
+  const pushSnapshot = () => {
+    try {
+      const dataUrl = canvasRef.current?.toDataURL("image/png");
+      if (!dataUrl) return;
+      historyRef.current.push(dataUrl);
+      setHistLen(historyRef.current.length);
+    } catch (e) {
+      console.warn("Falha ao capturar estado do canvas:", e);
+    }
+  };
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -111,10 +101,10 @@ export default function App() {
     canvas.height = HEIGHT;
     const ctx = canvas.getContext("2d");
     ctxRef.current = ctx;
-    // Fundo escuro e grade
     ctx.fillStyle = "#0b0f19";
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
     drawGrid(ctx);
+    pushSnapshot();
   }, []);
 
   const drawGrid = (ctx) => {
@@ -136,7 +126,6 @@ export default function App() {
     ctx.restore();
   };
 
-  // ---- Desenho no canvas ----
   const getPos = (e) => {
     const rect = canvasRef.current.getBoundingClientRect();
     if (e.touches && e.touches[0]) {
@@ -177,9 +166,9 @@ export default function App() {
     if (!isDrawing) return;
     ctxRef.current.closePath();
     setIsDrawing(false);
+    pushSnapshot();
   };
 
-  // ---- Upload de imagem ----
   const onUpload = (file) => {
     if (!file) return;
     const img = new Image();
@@ -194,13 +183,13 @@ export default function App() {
       const dx = (WIDTH - w) / 2;
       const dy = (HEIGHT - h) / 2;
       ctx.drawImage(img, dx, dy, w, h);
+      pushSnapshot();
     };
     const reader = new FileReader();
     reader.onload = () => (img.src = reader.result);
     reader.readAsDataURL(file);
   };
 
-  // ---- Câmera ----
   const openCamera = async () => {
     try {
       const s = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -208,50 +197,32 @@ export default function App() {
         videoRef.current.srcObject = s;
         await videoRef.current.play();
       }
-      setStream(s);
-      setCameraOn(true);
     } catch (e) {
       alert("Não foi possível acessar a câmera: " + e.message);
     }
   };
 
-  const capturePhoto = () => {
-    if (!videoRef.current) return;
-    const v = videoRef.current;
-    const temp = document.createElement("canvas");
-    temp.width = v.videoWidth;
-    temp.height = v.videoHeight;
-    const tctx = temp.getContext("2d");
-    tctx.drawImage(v, 0, 0);
-
-    const img = new Image();
-    img.onload = () => {
-      const ctx = ctxRef.current;
-      ctx.fillStyle = "#0b0f19";
-      ctx.fillRect(0, 0, WIDTH, HEIGHT);
-      drawGrid(ctx);
-      const scale = Math.min(WIDTH / img.width, HEIGHT / img.height);
-      const w = img.width * scale;
-      const h = img.height * scale;
-      const dx = (WIDTH - w) / 2;
-      const dy = (HEIGHT - h) / 2;
-      ctx.drawImage(img, dx, dy, w, h);
-    };
-    img.src = temp.toDataURL("image/png");
-  };
-
-  const closeCamera = () => {
-    if (stream) stream.getTracks().forEach((t) => t.stop());
-    setCameraOn(false);
-    setStream(null);
-  };
-
-  // ---- Utilidades ----
   const clearCanvas = () => {
     const ctx = ctxRef.current;
     ctx.fillStyle = "#0b0f19";
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
     drawGrid(ctx);
+    pushSnapshot();
+  };
+
+  const undoLast = () => {
+    const stack = historyRef.current;
+    if (stack.length <= 1) return;
+    stack.pop();
+    const prev = stack[stack.length - 1];
+    const img = new Image();
+    img.onload = () => {
+      const ctx = ctxRef.current;
+      ctx.clearRect(0, 0, WIDTH, HEIGHT);
+      ctx.drawImage(img, 0, 0, WIDTH, HEIGHT);
+      setHistLen(stack.length);
+    };
+    img.src = prev;
   };
 
   const downloadImage = () => {
@@ -265,10 +236,11 @@ export default function App() {
   const copyResult = async () => {
     try {
       await navigator.clipboard.writeText(output || "");
-    } catch {}
+    } catch (e) {
+      console.warn("Falha ao copiar para área de transferência:", e);
+    }
   };
 
-  // ---- Exportar PDF (simples: cabeçalho + imagem do canvas + texto renderizado como plain) ----
   const exportPDF = () => {
     try {
       setPdfLoading(true);
@@ -290,11 +262,10 @@ export default function App() {
 
       const img = canvasRef.current.toDataURL("image/png");
       const imgW = pageW - margin * 2;
-      const imgH = (imgW * 2) / 3; // proporção aproximada
+      const imgH = (imgW * 2) / 3;
       pdf.addImage(img, "PNG", margin, y, imgW, imgH, undefined, "FAST");
       y += imgH + 18;
 
-      // Texto (sem KaTeX) — para LaTeX fiel, usar html2canvas no futuro
       const text = (output || "");
       const lines = pdf.splitTextToSize(text, pageW - margin * 2);
       lines.forEach((line) => {
@@ -314,7 +285,6 @@ export default function App() {
     }
   };
 
-  // ---- Chamar backend proxy (/api/solve) ----
   const solve = async () => {
     setLoading(true);
     setOutput("");
@@ -336,45 +306,7 @@ export default function App() {
     }
   };
 
-  // ---- Checagem simbólica com nerdamer ----
-  const runSymbolicCheck = () => {
-    try {
-      setCheckMsg("");
-      const L = lhs.trim();
-      const R = rhs.trim();
-      if (!L || !R) throw new Error("Preencha LHS e RHS.");
-      const diffExpr = nerdamer(`(${L})-(${R})`).expand();
-      const diff = diffExpr.toString();
-      let ok = diff === "0";
-      if (!ok) {
-        const vars = Array.from(new Set((L + R).match(/[a-zA-Z]\w*/g) || [])).filter(
-          (v) => !["e", "pi", "sin", "cos", "tan", "log", "ln", "sqrt"].includes(v)
-        );
-        if (vars.length) {
-          ok = true;
-          for (let i = 0; i < 5; i++) {
-            let expr = nerdamer(`(${L})-(${R})`);
-            const subs = {};
-            vars.forEach((v) => {
-              subs[v] = (i + 2) * 0.37 + (v.charCodeAt(0) % 5);
-            });
-            expr = expr.evaluate(subs);
-            const val = parseFloat(expr.text());
-            if (!Number.isFinite(val) || Math.abs(val) > 1e-6) {
-              ok = false;
-              break;
-            }
-          }
-        }
-      }
-      setCheckMsg(ok ? "✅ As expressões parecem equivalentes." : `⚠️ Diferença simbólica: ${diff}`);
-    } catch (e) {
-      setCheckMsg("❌ Erro na checagem: " + e.message);
-    }
-  };
-
-  // ---- UI ----
-  const safeOutput = typeof output === "string" ? output : ""; // garante string para ReactMarkdown
+  const safeOutput = typeof output === "string" ? output : "";
 
   return (
     <div className="min-h-screen bg-[#050814] text-slate-200 p-4">
@@ -387,12 +319,6 @@ export default function App() {
             className="bg-slate-800 hover:bg-slate-700 rounded-xl px-3 py-2 flex items-center gap-2"
           >
             <FileText size={16} /> {pdfLoading ? "Gerando PDF..." : "PDF"}
-          </button>
-          <button
-            onClick={runSymbolicCheck}
-            className="bg-slate-800 hover:bg-slate-700 rounded-xl px-3 py-2 flex items-center gap-2"
-          >
-            <CheckCircle size={16} /> Checar
           </button>
           <button
             onClick={() => setShowSettings((s) => !s)}
@@ -457,8 +383,8 @@ export default function App() {
         </section>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div>
+      <div className="flex gap-4">
+        <div className="w-1/2">
           <div className="flex flex-wrap items-center gap-2 mb-2">
             <label className="inline-flex items-center gap-2 bg-slate-800 rounded-xl px-3 py-2">
               <Pen className="w-4 h-4" />
@@ -508,6 +434,14 @@ export default function App() {
             <button onClick={downloadImage} className="inline-flex items-center gap-2 rounded-xl bg-slate-800 hover:bg-slate-700 px-3 py-2">
               <Download className="w-4 h-4" /> PNG
             </button>
+            <button
+              onClick={undoLast}
+              disabled={histLen <= 1}
+              className="inline-flex items-center gap-2 rounded-xl bg-slate-800 disabled:opacity-50 hover:bg-slate-700 px-3 py-2"
+              title="Desfazer"
+            >
+              <Undo2 className="w-4 h-4" /> Desfazer
+            </button>
             <button onClick={clearCanvas} className="inline-flex items-center gap-2 rounded-xl bg-rose-700 hover:bg-rose-600 px-3 py-2 ml-auto">
               <Trash className="w-4 h-4" /> Limpar
             </button>
@@ -537,60 +471,35 @@ export default function App() {
           </div>
         </div>
 
-        <div className="bg-slate-900/60 rounded-xl p-4 overflow-auto min-h-[260px]">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-lg font-semibold">Solução (Markdown + LaTeX)</h2>
-            <button onClick={copyResult} className="inline-flex items-center gap-2 rounded-xl bg-slate-800 hover:bg-slate-700 px-3 py-2">
-              <Copy className="w-4 h-4" /> Copiar
-            </button>
-          </div>
-          <div id="solution-area" className="bg-slate-950/50 rounded-xl p-4 border border-slate-800 overflow-auto">
-            {/* react-markdown v9: sem className direto; envolva em um wrapper */}
-            <div className="prose prose-invert max-w-none break-words">
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm, remarkMath]}
-                rehypePlugins={[rehypeKatex]}
-              >
-                {safeOutput || `Desenhe ou carregue a questão e clique em **Resolver**.
+        <div className="w-1/2 flex flex-col gap-4">
+          <div className="bg-slate-900/60 rounded-xl p-4 overflow-auto min-h-[260px]">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-lg font-semibold">Solução (Markdown + LaTeX)</h2>
+              <button onClick={copyResult} className="inline-flex items-center gap-2 rounded-xl bg-slate-800 hover:bg-slate-700 px-3 py-2">
+                <Copy className="w-4 h-4" /> Copiar
+              </button>
+            </div>
+            <div id="solution-area" className="bg-slate-950/50 rounded-xl p-4 border border-slate-800 overflow-auto">
+              <div className="prose prose-invert max-w-none break-words">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm, remarkMath]}
+                  rehypePlugins={[rehypeKatex]}
+                >
+                  {safeOutput || `Desenhe ou carregue a questão e clique em **Resolver**.
 
-**Exemplo**: $$(x+1)^2 = x^2+2x+1$$`}
-              </ReactMarkdown>
+`}
+                </ReactMarkdown>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Checagem simbólica */}
-      <section className="mt-6 bg-slate-900/60 rounded-2xl p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <CheckCircle className="w-5 h-5" />
-          <h3 className="text-lg font-semibold">Checagem Simbólica</h3>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div>
-            <label className="text-sm opacity-80">LHS (esquerda)</label>
-            <input value={lhs} onChange={(e) => setLhs(e.target.value)} className="w-full bg-slate-800 rounded-xl px-3 py-2" placeholder="ex.: (x+1)^2" />
-          </div>
-          <div>
-            <label className="text-sm opacity-80">RHS (direita)</label>
-            <input value={rhs} onChange={(e) => setRhs(e.target.value)} className="w-full bg-slate-800 rounded-xl px-3 py-2" placeholder="ex.: x^2+2x+1" />
-          </div>
-        </div>
-        <div className="flex items-center gap-2 mt-3">
-          <button onClick={runSymbolicCheck} className="rounded-xl bg-indigo-600 hover:bg-indigo-500 px-4 py-2">Checar</button>
-          <div className="text-sm opacity-90">{checkMsg}</div>
-        </div>
-      </section>
-
-      {/* Dev tests opcionais */}
       {typeof window !== "undefined" && window.location?.search.includes("runTests=true") && <DevTests />}
     </div>
   );
 }
 
-// ==========================
-//  Testes (sanity, não intrusivos)
-// ==========================
 function DevTests() {
   useEffect(() => {
     const asserts = [];
@@ -613,4 +522,3 @@ function DevTests() {
   }, []);
   return null;
 }
-
