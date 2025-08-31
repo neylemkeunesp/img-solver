@@ -383,117 +383,121 @@ export default function App() {
         </section>
       )}
 
-      <div className="flex gap-4">
-        <div className="w-1/2">
-          <div className="flex flex-wrap items-center gap-2 mb-2">
-            <label className="inline-flex items-center gap-2 bg-slate-800 rounded-xl px-3 py-2">
-              <Pen className="w-4 h-4" />
-              <input
-                type="range"
-                min={1}
-                max={20}
-                value={penSize}
-                onChange={(e) => setPenSize(parseInt(e.target.value))}
-              />
-              <span className="text-sm w-8 text-right">{penSize}</span>
-            </label>
-            <button
-              onClick={() => setIsEraser(false)}
-              className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 ${
-                !isEraser ? "bg-indigo-600" : "bg-slate-800 hover:bg-slate-700"
-              }`}
-              title="Caneta"
-            >
-              <Pen className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setIsEraser(true)}
-              className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 ${
-                isEraser ? "bg-indigo-600" : "bg-slate-800 hover:bg-slate-700"
-              }`}
-              title="Borracha"
-            >
-              <Eraser className="w-4 h-4" />
-            </button>
-            <label className="inline-flex items-center gap-2 rounded-xl bg-slate-800 hover:bg-slate-700 px-3 py-2 cursor-pointer">
-              <Upload className="w-4 h-4" /> Upload
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => onUpload(e.target.files?.[0])}
-              />
-            </label>
-            <button
-              onClick={openCamera}
-              className="inline-flex items-center gap-2 rounded-xl bg-slate-800 hover:bg-slate-700 px-3 py-2"
-              title="Abrir câmera"
-            >
-              <Camera className="w-4 h-4" />
-            </button>
-            <button onClick={downloadImage} className="inline-flex items-center gap-2 rounded-xl bg-slate-800 hover:bg-slate-700 px-3 py-2">
-              <Download className="w-4 h-4" /> PNG
-            </button>
-            <button
-              onClick={undoLast}
-              disabled={histLen <= 1}
-              className="inline-flex items-center gap-2 rounded-xl bg-slate-800 disabled:opacity-50 hover:bg-slate-700 px-3 py-2"
-              title="Desfazer"
-            >
-              <Undo2 className="w-4 h-4" /> Desfazer
-            </button>
-            <button onClick={clearCanvas} className="inline-flex items-center gap-2 rounded-xl bg-rose-700 hover:bg-rose-600 px-3 py-2 ml-auto">
-              <Trash className="w-4 h-4" /> Limpar
-            </button>
-          </div>
+      <table style={{ width: '100%', borderSpacing: '1rem' }}>
+        <tbody>
+          <tr>
+            <td style={{ width: 'auto', verticalAlign: 'top' }}>
+              <div className="flex flex-col h-full">
+                <div className="flex items-center gap-2 mb-2 overflow-x-auto whitespace-nowrap pr-2">
+                  <label className="inline-flex items-center gap-2 bg-slate-800 rounded-xl px-3 py-2 shrink-0">
+                    <Pen className="w-4 h-4" />
+                    <input
+                      type="range"
+                      min={1}
+                      max={20}
+                      value={penSize}
+                      onChange={(e) => setPenSize(parseInt(e.target.value))}
+                    />
+                    <span className="text-sm w-8 text-right">{penSize}</span>
+                  </label>
+                  <button
+                    onClick={() => setIsEraser(false)}
+                    className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 ${
+                      !isEraser ? "bg-indigo-600" : "bg-slate-800 hover:bg-slate-700"
+                    } shrink-0`}
+                    title="Caneta"
+                  >
+                    <Pen className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setIsEraser(true)}
+                    className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 ${
+                      isEraser ? "bg-indigo-600" : "bg-slate-800 hover:bg-slate-700"
+                    } shrink-0`}
+                    title="Borracha"
+                  >
+                    <Eraser className="w-4 h-4" />
+                  </button>
+                  <label className="inline-flex items-center gap-2 rounded-xl bg-slate-800 hover:bg-slate-700 px-3 py-2 cursor-pointer shrink-0">
+                    <Upload className="w-4 h-4" /> Upload
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="sr-only"
+                      onChange={(e) => onUpload(e.target.files?.[0])}
+                    />
+                  </label>
+                  <button
+                    onClick={openCamera}
+                    className="inline-flex items-center gap-2 rounded-xl bg-slate-800 hover:bg-slate-700 px-3 py-2 shrink-0"
+                    title="Abrir câmera"
+                  >
+                    <Camera className="w-4 h-4" />
+                  </button>
+                  <button onClick={downloadImage} className="inline-flex items-center gap-2 rounded-xl bg-slate-800 hover:bg-slate-700 px-3 py-2 shrink-0">
+                    <Download className="w-4 h-4" /> PNG
+                  </button>
+                  <button
+                    onClick={undoLast}
+                    disabled={histLen <= 1}
+                    className="inline-flex items-center gap-2 rounded-xl bg-slate-800 disabled:opacity-50 hover:bg-slate-700 px-3 py-2 shrink-0"
+                    title="Desfazer"
+                  >
+                    <Undo2 className="w-4 h-4" /> Desfazer
+                  </button>
+                  <div className="flex items-center gap-2 ml-auto">
+                    <button onClick={clearCanvas} className="inline-flex items-center gap-2 rounded-xl bg-rose-700 hover:bg-rose-600 px-3 py-2 shrink-0">
+                      <Trash className="w-4 h-4" /> Limpar
+                    </button>
+                    <button
+                      onClick={solve}
+                      disabled={loading}
+                      className="bg-emerald-600 hover:bg-emerald-500 rounded-xl px-4 py-2 flex items-center gap-2 shrink-0"
+                    >
+                      <Play size={16} /> {loading ? "Resolvendo..." : "Resolver"}
+                    </button>
+                  </div>
+                </div>
 
-          <canvas
-            ref={canvasRef}
-            onMouseDown={startDraw}
-            onMouseMove={draw}
-            onMouseUp={endDraw}
-            onMouseLeave={endDraw}
-            onTouchStart={startDraw}
-            onTouchMove={draw}
-            onTouchEnd={endDraw}
-            className="border border-slate-700 rounded-lg w-full h-auto touch-none"
-            style={{ touchAction: 'none' }}
-          />
-
-          <div className="mt-2 flex gap-2">
-            <button
-              onClick={solve}
-              disabled={loading}
-              className="bg-emerald-600 hover:bg-emerald-500 rounded-xl px-4 py-2 flex items-center gap-2"
-            >
-              <Play size={16} /> {loading ? "Resolvendo..." : "Resolver"}
-            </button>
-          </div>
-        </div>
-
-        <div className="w-1/2 flex flex-col gap-4">
-          <div className="bg-slate-900/60 rounded-xl p-4 overflow-auto min-h-[260px]">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-lg font-semibold">Solução (Markdown + LaTeX)</h2>
-              <button onClick={copyResult} className="inline-flex items-center gap-2 rounded-xl bg-slate-800 hover:bg-slate-700 px-3 py-2">
-                <Copy className="w-4 h-4" /> Copiar
-              </button>
-            </div>
-            <div id="solution-area" className="bg-slate-950/50 rounded-xl p-4 border border-slate-800 overflow-auto">
-              <div className="prose prose-invert max-w-none break-words">
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm, remarkMath]}
-                  rehypePlugins={[rehypeKatex]}
-                >
-                  {safeOutput || `Desenhe ou carregue a questão e clique em **Resolver**.
+                <canvas
+                  ref={canvasRef}
+                  onMouseDown={startDraw}
+                  onMouseMove={draw}
+                  onMouseUp={endDraw}
+                  onMouseLeave={endDraw}
+                  onTouchStart={startDraw}
+                  onTouchMove={draw}
+                  onTouchEnd={endDraw}
+                  className="border border-slate-700 rounded-lg w-full h-auto touch-none"
+                  style={{ touchAction: 'none' }}
+                />
+              </div>
+            </td>
+            <td style={{ width: '520px', verticalAlign: 'top' }}>
+              <div className="bg-slate-900/60 rounded-xl p-4 overflow-auto h-full">
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-lg font-semibold">Solução (Markdown + LaTeX)</h2>
+                  <button onClick={copyResult} className="inline-flex items-center gap-2 rounded-xl bg-slate-800 hover:bg-slate-700 px-3 py-2">
+                    <Copy className="w-4 h-4" /> Copiar
+                  </button>
+                </div>
+                <div id="solution-area" className="bg-slate-950/50 rounded-xl p-4 border border-slate-800 overflow-auto h-full">
+                  <div className="prose prose-invert max-w-none break-words">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm, remarkMath]}
+                      rehypePlugins={[rehypeKatex]}
+                    >
+                      {safeOutput || `Desenhe ou carregue a questão e clique em **Resolver**.
 
 `}
-                </ReactMarkdown>
+                    </ReactMarkdown>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-        </div>
-      </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
 
       {typeof window !== "undefined" && window.location?.search.includes("runTests=true") && <DevTests />}
     </div>
