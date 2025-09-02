@@ -310,9 +310,9 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#050814] text-slate-200 p-4">
-      <div className="flex justify-between mb-4">
-        <h1 className="text-2xl font-semibold">Solucionador por Imagem</h1>
-        <div className="flex gap-2">
+      <div className="relative mb-4">
+        <h1 className="text-2xl font-semibold text-center">Solucionador por Imagem</h1>
+        <div className="absolute top-0 right-0 flex gap-2">
           <button
             onClick={exportPDF}
             disabled={pdfLoading}
