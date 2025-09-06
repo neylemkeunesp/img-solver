@@ -23,6 +23,7 @@ export default function App() {
   const ctxRef = useRef(null);
   const videoRef = useRef(null);
 
+  const lastPointRef = useRef({ x: 0, y: 0 });
   const [isDrawing, setIsDrawing] = useState(false);
   const [penSize, setPenSize] = useState(4);
   const [isEraser, setIsEraser] = useState(false);
@@ -142,29 +143,41 @@ export default function App() {
 
   const startDraw = (e) => {
     e.stopPropagation();
-    const { x, y } = getPos(e);
+    const pos = getPos(e);
     const ctx = ctxRef.current;
+    
+    setIsDrawing(true);
+    lastPointRef.current = pos;
+
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
-    ctx.lineWidth = penSize;
-    ctx.strokeStyle = isEraser ? "rgba(0,0,0,1)" : "#e6edf7";
     ctx.globalCompositeOperation = isEraser ? "destination-out" : "source-over";
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    setIsDrawing(true);
+    ctx.strokeStyle = isEraser ? "rgba(0,0,0,1)" : "#e6edf7";
   };
 
   const draw = (e) => {
     if (!isDrawing) return;
-    const { x, y } = getPos(e);
+    const pos = getPos(e);
+    const posLast = lastPointRef.current;
+    if (pos.x === posLast.x && pos.y === posLast.y) return;
+    
     const ctx = ctxRef.current;
-    ctx.lineTo(x, y);
+    const midPoint = { x: (posLast.x + pos.x) / 2, y: (posLast.y + pos.y) / 2 };
+    
+    const dist = Math.hypot(pos.x - posLast.x, pos.y - posLast.y);
+    ctx.lineWidth = Math.max(penSize / (dist / 10 + 1), 1);
+    
+    ctx.beginPath();
+    ctx.moveTo(midPoint.x, midPoint.y);
+    ctx.quadraticCurveTo(posLast.x, posLast.y, pos.x, pos.y);
     ctx.stroke();
+    
+    lastPointRef.current = pos;
   };
 
   const endDraw = () => {
     if (!isDrawing) return;
-    ctxRef.current.closePath();
+    ctxRef.current?.closePath();
     setIsDrawing(false);
     pushSnapshot();
   };

@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import fetch from 'node-fetch';
@@ -95,6 +96,9 @@ app.post('/api/solve', async (req, res) => {
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`Servidor backend rodando em http://localhost:${PORT}`);
+  const hasOpenAI = !!process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.trim() !== '';
+  const hasOpenRouter = !!process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY.trim() !== '';
+  console.log(`Variáveis .env carregadas -> OPENAI_API_KEY: ${hasOpenAI ? 'SIM' : 'NÃO'}, OPENROUTER_API_KEY: ${hasOpenRouter ? 'SIM' : 'NÃO'}`);
   console.log("Lembre-se de configurar suas variáveis de ambiente:");
   console.log("  OPENAI_API_KEY=sua_chave_aqui (se usar OpenAI)");
   console.log("  OPENROUTER_API_KEY=sua_chave_aqui (se usar OpenRouter)");
